@@ -8,6 +8,7 @@ from sklearn.utils import shuffle
 from torch.utils.data import Dataset, DataLoader
 import torch
 from torch.utils.data import random_split
+from skimage.transform import resize
 from config import (
     DATASET_PATH, TASK_ID, TRAIN_VAL_TEST_SPLIT,
     TRAIN_BATCH_SIZE, VAL_BATCH_SIZE, TEST_BATCH_SIZE
@@ -17,7 +18,7 @@ from config import (
 def ExtractTar(Directory):
         try:
             print("Extracting tar file ...")
-            tarfile.open(Directory).extractall('./Datasets')
+            tarfile.open(Directory).extractall('.')
         except:
             raise "File extraction failed!"
         print("Extraction completed!")
@@ -54,29 +55,45 @@ class MedicalSegmentationDecathlon(Dataset):
         if len(self.task_number) == 1:
             self.task_number = "0" + self.task_number
         #Building the file name according to task ID
-        self.file_name = f"Task{self.task_number}_{task_names[self.task_number]}"
+        # self.file_name = f"Task{self.task_number}_{task_names[self.task_number]}"
         #Extracting .tar file
-        if not os.path.exists(os.path.join(os.getcwd(), "Datasets", self.file_name)):
-            ExtractTar(os.path.join(dir_path, f"{self.file_name}.tar"))
+        # if not os.path.exists(os.path.join(os.getcwd(), "Datasets", self.file_name)):
+        #     ExtractTar(os.path.join(dir_path, f"{self.file_name}.tar"))
         #Path to extracted dataset
-        self.dir = os.path.join(os.getcwd(), "Datasets", self.file_name)
+        # self.dir = os.path.join(os.getcwd(), "Datasets", self.file_name)
+        self.dir = os.path.abspath('/media/jeeheon/SSD/ToothFairy_Dataset/nii')
         #Meta data about the dataset
-        self.meta = json.load(open(os.path.join(self.dir, "dataset.json")))
+        # self.meta = json.load(open(os.path.join(self.dir, "dataset.json")))
+        self.meta = dict()
         self.splits = split_ratios
         self.transform = transforms
+
         #Calculating split number of images
-        num_training_imgs =  self.meta["numTraining"]
-        train_val_test = [int(x * num_training_imgs) for x in split_ratios]
-        if(sum(train_val_test) != num_training_imgs): train_val_test[0] += (num_training_imgs - sum(train_val_test))
-        train_val_test = [x for x in train_val_test if x!=0]
-        # train_val_test = [(x-1) for x in train_val_test]
+        # num_training_imgs =  self.meta["numTraining"]
+        # print('os.listdir(self.dir) : ', os.listdir(self.dir))
+
+        
+
+        # train_val_test = [int(x * num_training_imgs) for x in split_ratios]
+        # if(sum(train_val_test) != num_training_imgs): train_val_test[0] += (num_training_imgs - sum(train_val_test))
+        # train_val_test = [x for x in train_val_test if x!=0]
+        # # train_val_test = [(x-1) for x in train_val_test]
         self.mode = mode
-        #Spliting dataset
-        samples = self.meta["training"]
-        shuffle(samples)
-        self.train = samples[0:train_val_test[0]]
-        self.val = samples[train_val_test[0]:train_val_test[0] + train_val_test[1]]
-        self.test = samples[train_val_test[1]:train_val_test[1] + train_val_test[2]]
+        # #Spliting dataset
+        # samples = self.meta["training"]
+        # shuffle(samples)
+        # self.train = samples[0:train_val_test[0]]
+
+        # self.val = samples[train_val_test[0]:train_val_test[0] + train_val_test[1]]
+        # self.test = samples[train_val_test[1]:train_val_test[1] + train_val_test[2]]
+
+        self.train = sorted(os.listdir(os.path.join(self.dir, 'train')))
+        self.val = sorted(os.listdir(os.path.join(self.dir, 'val')))
+        self.test = sorted(os.listdir(os.path.join(self.dir, 'test')))
+
+        self.meta["training"] = self.train
+        self.meta["numTraining"] = len(self.meta["training"])
+        num_training_imgs = self.meta["numTraining"]
 
     def set_mode(self, mode):
         self.mode = mode
@@ -95,22 +112,36 @@ class MedicalSegmentationDecathlon(Dataset):
             idx = idx.tolist()
         #Obtaining image name by given index and the mode using meta data
         if self.mode == "train":
-            name = self.train[idx]['image'].split('/')[-1]
+            name = self.train[idx]
         elif self.mode == "val":
-            name = self.val[idx]['image'].split('/')[-1]
+            # name = self.val[idx]['image'].split('/')[-1]
+            name = self.val[idx]
         elif self.mode == "test":
-            name = self.test[idx]['image'].split('/')[-1]
+            name = self.test[idx]
         else:
             name = self.meta["training"][idx]['image'].split('/')[-1]
-        img_path = os.path.join(self.dir, "imagesTr", name)
-        label_path = os.path.join(self.dir, "labelsTr", name)
+
+        img_path = os.path.join(self.dir, self.mode, name, 'data.nii.gz')
+        label_path = os.path.join(self.dir, self.mode, name, 'gt_alpha.nii.gz')
+
         img_object = nib.load(img_path)
         label_object = nib.load(label_path)
         img_array = img_object.get_fdata()
+
         #Converting to channel-first numpy array
-        img_array = np.moveaxis(img_array, -1, 0)
+        # img_array = np.moveaxis(img_array, -1, 0)
         label_array = label_object.get_fdata()
-        label_array = np.moveaxis(label_array, -1, 0)
+
+        # img_array = img_array.astype(np.float64)
+        # label_array = label_array.astype(np.float64)
+        
+        img_array = resize(img_array, (64, 128, 128))
+        label_array = resize(label_array, (64, 128, 128))
+
+        # img_array = resize(img_array, (128, 256, 256))
+        # label_array = resize(label_array, (128, 256, 256))
+
+        # label_array = np.moveaxis(label_array, -1, 0)
         proccessed_out = {'name': name, 'image': img_array, 'label': label_array} 
         if self.transform:
             if self.mode == "train":
@@ -122,7 +153,6 @@ class MedicalSegmentationDecathlon(Dataset):
             else:
                 proccessed_out = self.transform(proccessed_out)
         
-        #The output numpy array is in channel-first format
         return proccessed_out
 
 
@@ -146,3 +176,19 @@ def get_train_val_test_Dataloaders(train_transforms, val_transforms, test_transf
     test_dataloader = DataLoader(dataset= test_set, batch_size= TEST_BATCH_SIZE, shuffle= False)
     
     return train_dataloader, val_dataloader, test_dataloader
+
+def get_val_Dataloaders(train_transforms, val_transforms, test_transforms):
+    """
+    The utility function to generate splitted train, validation and test dataloaders
+    
+    Note: all the configs to generate dataloaders in included in "config.py"
+    """
+
+    dataset = MedicalSegmentationDecathlon(task_number=TASK_ID, dir_path=DATASET_PATH, split_ratios=[1.0, 0.0, 0.0], transforms=[train_transforms, val_transforms, test_transforms])
+
+    #Spliting dataset and building their respective DataLoaders
+    val_set = copy.deepcopy(dataset)
+    val_set.set_mode('val')
+    val_dataloader = DataLoader(dataset= val_set, batch_size= VAL_BATCH_SIZE, shuffle= False)
+    
+    return val_dataloader

@@ -8,7 +8,7 @@ Dataset configurations:
     :param BACKGROUND_AS_CLASS -> if True, the model treats background as a class
 
 """""
-DATASET_PATH = '/PATH/TO/THE/DATASET'
+DATASET_PATH = '/home/jeeheon/Documents/pytorch-3dunet-master/dataset/ToothFairy_Dataset_nii'
 TASK_ID = 9
 IN_CHANNELS = 1
 NUM_CLASSES = 1

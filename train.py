@@ -10,8 +10,14 @@ from torch.utils.tensorboard import SummaryWriter
 from unet3d import UNet3D
 from transforms import (train_transform, train_transform_cuda,
                         val_transform, val_transform_cuda)
+import torch.nn.functional as F
+import torch.nn as nn
+
+from losses import DiceLoss
+
 
 if BACKGROUND_AS_CLASS: NUM_CLASSES += 1
+
 
 writer = SummaryWriter("runs")
 
@@ -21,6 +27,7 @@ val_transforms = val_transform
 
 if torch.cuda.is_available() and TRAIN_CUDA:
     model = model.cuda()
+    # model = model.to('cuda')
     train_transforms = train_transform_cuda
     val_transforms = val_transform_cuda 
 elif not torch.cuda.is_available() and TRAIN_CUDA:
@@ -29,8 +36,10 @@ elif not torch.cuda.is_available() and TRAIN_CUDA:
 
 train_dataloader, val_dataloader, _ = get_train_val_test_Dataloaders(train_transforms= train_transforms, val_transforms=val_transforms, test_transforms= val_transforms)
 
+# criterion = CrossEntropyLoss(weight=torch.Tensor(BCE_WEIGHTS)).cuda()
 
-criterion = CrossEntropyLoss(weight=torch.Tensor(BCE_WEIGHTS))
+criterion = DiceLoss()
+
 optimizer = Adam(params=model.parameters())
 
 min_valid_loss = math.inf
@@ -39,10 +48,40 @@ for epoch in range(TRAINING_EPOCH):
     
     train_loss = 0.0
     model.train()
+
+    print('EPOCH : {} / {} , len(train_dataloader) : '.format(epoch, TRAINING_EPOCH), len(train_dataloader))
     for data in train_dataloader:
         image, ground_truth = data['image'], data['label']
+        # print('image.shape : ', image.shape)
+        # print('ground_truth.shape : ', ground_truth.shape)
+
+        # image = image.long()
+        # ground_truth = ground_truth.type(torch.DoubleTensor)
+        # ground_truth = ground_truth.float()
+
+        # ground_truth = ground_truth.cuda()
         optimizer.zero_grad()
+
         target = model(image)
+        # target = target.squeeze(0)
+        # target = target.type(torch.DoubleTensor)
+        # target = target.float()
+
+        # target = target.cuda()
+        # ground_truth = ground_truth.squeeze(0).cuda()
+
+        # print('target.shape : ', target.shape)
+        # print('ground_truth.shape : ', ground_truth.shape)
+        # print()
+        
+        # print('target.is_cuda : ', target.is_cuda)
+        # print('ground_truth.is_cuda : ', ground_truth.is_cuda)        
+        # print()
+
+        # print('target.dtype : ', target.dtype)
+        # print('ground_truth.dtype : ', ground_truth.dtype)        
+        # print()
+
         loss = criterion(target, ground_truth)
         loss.backward()
         optimizer.step()
@@ -55,14 +94,18 @@ for epoch in range(TRAINING_EPOCH):
         image, ground_truth = data['image'], data['label']
         
         target = model(image)
+
         loss = criterion(target,ground_truth)
-        valid_loss = loss.item()
+        valid_loss += loss.item()
+        
         
     writer.add_scalar("Loss/Train", train_loss / len(train_dataloader), epoch)
     writer.add_scalar("Loss/Validation", valid_loss / len(val_dataloader), epoch)
     
     print(f'Epoch {epoch+1} \t\t Training Loss: {train_loss / len(train_dataloader)} \t\t Validation Loss: {valid_loss / len(val_dataloader)}')
     
+    valid_loss = valid_loss / len(val_dataloader)
+
     if min_valid_loss > valid_loss:
         print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{valid_loss:.6f}) \t Saving The Model')
         min_valid_loss = valid_loss

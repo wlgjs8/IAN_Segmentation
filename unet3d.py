@@ -7,9 +7,9 @@ Author: Amir Aghdam
 from torch import nn
 from torchsummary import summary
 import torch
+import torch.nn.functional as F
+
 import time
-
-
 
 class Conv3DBlock(nn.Module):
     """
@@ -80,7 +80,9 @@ class UpConv3DBlock(nn.Module):
         if residual!=None: out = torch.cat((out, residual), 1)
         out = self.relu(self.bn(self.conv1(out)))
         out = self.relu(self.bn(self.conv2(out)))
-        if self.last_layer: out = self.conv3(out)
+        if self.last_layer: 
+            out = self.conv3(out)
+            out = F.sigmoid(out)
         return out
         
 
@@ -101,6 +103,8 @@ class UNet3D(nn.Module):
     """
     
     def __init__(self, in_channels, num_classes, level_channels=[64, 128, 256], bottleneck_channel=512) -> None:
+    # def __init__(self, in_channels, num_classes, level_channels=[32, 64, 128], bottleneck_channel=256) -> None:
+    # def __init__(self, in_channels, num_classes, level_channels=[16, 32, 64], bottleneck_channel=128) -> None:
         super(UNet3D, self).__init__()
         level_1_chnls, level_2_chnls, level_3_chnls = level_channels[0], level_channels[1], level_channels[2]
         self.a_block1 = Conv3DBlock(in_channels=in_channels, out_channels=level_1_chnls)
@@ -129,7 +133,7 @@ class UNet3D(nn.Module):
 
 if __name__ == '__main__':
     #Configurations according to the Xenopus kidney dataset
-    model = UNet3D(in_channels=3, num_classes=1)
+    model = UNet3D(in_channels=1, num_classes=1)
     start_time = time.time()
-    summary(model=model, input_size=(3, 16, 128, 128), batch_size=-1, device="cpu")
+    summary(model=model, input_size=(1, 16, 128, 128), batch_size=-1, device="cpu")
     print("--- %s seconds ---" % (time.time() - start_time))

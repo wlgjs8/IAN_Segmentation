@@ -22,11 +22,11 @@ if BACKGROUND_AS_CLASS: NUM_CLASSES += 1
 
 
 def save_result(image, target, ground_truth, idx, save_dir='./results'):
-    print('>> bef << ')
-    print('image.shape : ', image.shape)
-    print('target.shape : ', target.shape)
-    print('ground_truth.shape : ', ground_truth.shape)
-    print()
+    # print('>> bef << ')
+    # print('image.shape : ', image.shape)
+    # print('target.shape : ', target.shape)
+    # print('ground_truth.shape : ', ground_truth.shape)
+    # print()
 
     image = image.squeeze(0).squeeze(0)
     target = target.squeeze(0).squeeze(0)
@@ -43,11 +43,11 @@ def save_result(image, target, ground_truth, idx, save_dir='./results'):
     # target = target.transpose(2, 1, 0)
     # ground_truth = ground_truth.transpose(2, 1, 0)
 
-    print('>> aft << ')
-    print('image.shape : ', image.shape)
-    print('target.shape : ', target.shape)
-    print('ground_truth.shape : ', ground_truth.shape)
-    print()
+    # print('>> aft << ')
+    # print('image.shape : ', image.shape)
+    # print('target.shape : ', target.shape)
+    # print('ground_truth.shape : ', ground_truth.shape)
+    # print()
 
     nii_image = nib.Nifti1Image(np_image, affine=np.eye(4))
     nii_target = nib.Nifti1Image(np_target, affine=np.eye(4))
@@ -60,7 +60,8 @@ def save_result(image, target, ground_truth, idx, save_dir='./results'):
 
 model = UNet3D(in_channels=IN_CHANNELS , num_classes= NUM_CLASSES)
 
-MODEL_WEIGHT_PATH = './checkpoints#1/epoch4_valLoss0.7130498807546755.pth'
+# MODEL_WEIGHT_PATH = './checkpoints#1/epoch4_valLoss0.7130498807546755.pth'
+MODEL_WEIGHT_PATH = './checkpoints#2/epoch3_valLoss0.8230234489230827.pth'
 # model = torch.load(MODEL_WEIGHT_PATH)
 model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
 # print(model)
@@ -79,7 +80,7 @@ val_dataloader = get_val_Dataloaders(train_transforms= train_transforms, val_tra
 criterion = DiceLoss()
 
 min_valid_loss = math.inf
-valid_loss = 0.0
+valid_score = 0.0
 model.eval()
 
 for idx, data in enumerate(val_dataloader):
@@ -89,20 +90,26 @@ for idx, data in enumerate(val_dataloader):
     # image = image.float()
     # ground_truth = ground_truth.float()
 
-    print('image.shape : ', image.shape)
-    print('ground_truth.shape : ', ground_truth.shape)
-    print()
+    # print('image.shape : ', image.shape)
+    # print('ground_truth.shape : ', ground_truth.shape)
+    # print()
 
     target = model(image)
+    
 
-    # save_result(image, target, ground_truth, idx)
+    save_result(image, target, ground_truth, idx)
     # print('image info : ', torch.max(image), ', ', torch.min(image))
     # print('target info : ', torch.max(target), ', ', torch.min(target))
     # print('ground_truth info : ', torch.max(ground_truth), ', ', torch.min(ground_truth))
 
     loss = criterion(target,ground_truth)
-    valid_loss += loss.item()
+    dice_score = 1- loss.item()
+    # valid_loss += loss.item()
+    valid_score += dice_score
 
-    print('Val DICE Loss : ', valid_loss)
+    # print('Val DICE Loss : ', loss)
+    print('Val DICE Score : ', dice_score)
+    # print('Val DICE Loss : ', valid_loss)
     
-print(f'=> Validation Loss: {valid_loss / len(val_dataloader)}')
+print()
+print(f'=> Total Validation Score: {valid_score / len(val_dataloader)}')

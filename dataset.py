@@ -9,36 +9,15 @@ from torch.utils.data import Dataset, DataLoader
 import torch
 from torch.utils.data import random_split
 from skimage.transform import resize
+# from config import (
+#     DATASET_PATH, TASK_ID, TRAIN_VAL_TEST_SPLIT,
+#     TRAIN_BATCH_SIZE, VAL_BATCH_SIZE, TEST_BATCH_SIZE
+# )
 from config import (
-    DATASET_PATH, TASK_ID, TRAIN_VAL_TEST_SPLIT,
     TRAIN_BATCH_SIZE, VAL_BATCH_SIZE, TEST_BATCH_SIZE
 )
 
-#Utility function to extract .tar file formats into ./Datasets directory
-def ExtractTar(Directory):
-        try:
-            print("Extracting tar file ...")
-            tarfile.open(Directory).extractall('.')
-        except:
-            raise "File extraction failed!"
-        print("Extraction completed!")
-        return 
-
-
-#The dict representing segmentation tasks along with their IDs
-task_names = {
-    "01": "BrainTumour",
-    "02": "Heart",
-    "03": "Liver",
-    "04": "Hippocampus",
-    "05": "Prostate",
-    "06": "Lung",
-    "07": "Pancreas",
-    "08": "HepaticVessel",
-    "09": "Spleen",
-    "10": "Colon"
-}
-
+from utils import resize_img
 
 class MedicalSegmentationDecathlon(Dataset):
     """
@@ -48,12 +27,14 @@ class MedicalSegmentationDecathlon(Dataset):
     :param dir_path -> the dataset directory path to .tar files
     :param transform -> optional - transforms to be applied on each instance
     """
-    def __init__(self, task_number, dir_path, split_ratios = [0.8, 0.1, 0.1], transforms = None, mode = None) -> None:
+    def __init__(self, transforms = None, mode = None) -> None:
         super(MedicalSegmentationDecathlon, self).__init__()
         #Rectify the task ID representaion
-        self.task_number = str(task_number)
-        if len(self.task_number) == 1:
-            self.task_number = "0" + self.task_number
+        
+        # self.task_number = str(task_number)
+        # if len(self.task_number) == 1:
+        #     self.task_number = "0" + self.task_number
+        
         #Building the file name according to task ID
         # self.file_name = f"Task{self.task_number}_{task_names[self.task_number]}"
         #Extracting .tar file
@@ -61,11 +42,10 @@ class MedicalSegmentationDecathlon(Dataset):
         #     ExtractTar(os.path.join(dir_path, f"{self.file_name}.tar"))
         #Path to extracted dataset
         # self.dir = os.path.join(os.getcwd(), "Datasets", self.file_name)
-        self.dir = os.path.abspath('/media/jeeheon/SSD/ToothFairy_Dataset/nii')
+        self.dir = os.path.abspath('/media/jeeheon/SSD/ToothFairy_Dataset/ban_nii')
         #Meta data about the dataset
         # self.meta = json.load(open(os.path.join(self.dir, "dataset.json")))
         self.meta = dict()
-        self.splits = split_ratios
         self.transform = transforms
 
         #Calculating split number of images
@@ -122,6 +102,7 @@ class MedicalSegmentationDecathlon(Dataset):
             name = self.meta["training"][idx]['image'].split('/')[-1]
 
         img_path = os.path.join(self.dir, self.mode, name, 'data.nii.gz')
+        # img_path = os.path.join(self.dir, self.mode, name, 'gt_sparse.nii.gz')
         label_path = os.path.join(self.dir, self.mode, name, 'gt_alpha.nii.gz')
 
         img_object = nib.load(img_path)
@@ -135,8 +116,12 @@ class MedicalSegmentationDecathlon(Dataset):
         # img_array = img_array.astype(np.float64)
         # label_array = label_array.astype(np.float64)
         
-        img_array = resize(img_array, (64, 128, 128))
-        label_array = resize(label_array, (64, 128, 128))
+        img_array = resize_img(img_array, (64, 128, 128))
+        label_array = resize_img(label_array, (64, 128, 128))
+
+
+        # gt_pts = utils.compute_3D_coordinate(np_gt)
+        # gt_heatmaps = utils.kp2heatmap(gt_pts, size=(64, 128, 128))
 
         # img_array = resize(img_array, (128, 256, 256))
         # label_array = resize(label_array, (128, 256, 256))
@@ -164,7 +149,7 @@ def get_train_val_test_Dataloaders(train_transforms, val_transforms, test_transf
     Note: all the configs to generate dataloaders in included in "config.py"
     """
 
-    dataset = MedicalSegmentationDecathlon(task_number=TASK_ID, dir_path=DATASET_PATH, split_ratios=TRAIN_VAL_TEST_SPLIT, transforms=[train_transforms, val_transforms, test_transforms])
+    dataset = MedicalSegmentationDecathlon(transforms=[train_transforms, val_transforms, test_transforms])
 
     #Spliting dataset and building their respective DataLoaders
     train_set, val_set, test_set = copy.deepcopy(dataset), copy.deepcopy(dataset), copy.deepcopy(dataset)
@@ -184,7 +169,7 @@ def get_val_Dataloaders(train_transforms, val_transforms, test_transforms):
     Note: all the configs to generate dataloaders in included in "config.py"
     """
 
-    dataset = MedicalSegmentationDecathlon(task_number=TASK_ID, dir_path=DATASET_PATH, split_ratios=[1.0, 0.0, 0.0], transforms=[train_transforms, val_transforms, test_transforms])
+    dataset = MedicalSegmentationDecathlon(transforms=[train_transforms, val_transforms, test_transforms])
 
     #Spliting dataset and building their respective DataLoaders
     val_set = copy.deepcopy(dataset)

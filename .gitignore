@@ -13,11 +13,14 @@
 
 gui.py
 
+temp.py
+temp2.py
 
-checkpoints/
-checkpoints#1/
+
+results*/
+features*/
+checkpoints*/
 runs/
-results/
 
 __pycache__/
 *.py[cod]

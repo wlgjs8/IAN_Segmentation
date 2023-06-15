@@ -1,7 +1,7 @@
 import math
 import torch
 from config import (
-    TRAINING_EPOCH, NUM_CLASSES, IN_CHANNELS, TRAIN_CUDA
+    TRAINING_EPOCH, NUM_CLASSES, IN_CHANNELS, BCE_WEIGHTS, BACKGROUND_AS_CLASS, TRAIN_CUDA
 )
 from torch.nn import CrossEntropyLoss
 from dataset import get_train_val_test_Dataloaders
@@ -14,8 +14,9 @@ import torch.nn.functional as F
 import torch.nn as nn
 
 from losses import DiceLoss
-import utils
 
+
+if BACKGROUND_AS_CLASS: NUM_CLASSES += 1
 
 
 writer = SummaryWriter("runs")
@@ -40,7 +41,7 @@ train_dataloader, val_dataloader, _ = get_train_val_test_Dataloaders(train_trans
 criterion = DiceLoss()
 criterion2 = nn.MSELoss()
 
-optimizer = Adam(params=model.parameters())
+optimizer = Adam(params=model.parameters(), lr=0.0005)
 
 min_valid_loss = math.inf
 
@@ -52,30 +53,23 @@ for epoch in range(TRAINING_EPOCH):
     print('EPOCH : {} / {} , len(train_dataloader) : '.format(epoch, TRAINING_EPOCH), len(train_dataloader))
     for data in train_dataloader:
         image, ground_truth = data['image'], data['label']
-
         optimizer.zero_grad()
 
         target = model(image)
 
         losses = 0.0
         loss = criterion(target, ground_truth)
+        bce_loss = criterion2(target, ground_truth)
 
-        np_target = target.squeeze(0).squeeze(0).detach().cpu().numpy()
-        np_gt = ground_truth.squeeze(0).squeeze(0).detach().cpu().numpy()
+        # print(loss)
+        # print(bce_loss)
+        # losses.update({'Dice Loss' : loss.item()})
+        # losses.update({'MSE Loss' : bce_loss.item()})
+        # losses.update(bce_loss)
 
-        target_pts, gt_pts = utils.compute_MIP_and_coordinates(np_target, np_gt)
-
-        # print('target_pts : ', target_pts)
-        # print('gt_pts : ', gt_pts)
-        loss_pts = criterion2(target_pts, gt_pts)
-
-        # print('loss : ', loss)
-        # print('loss_pts : ', loss_pts)
-
-        losses = loss + (10 * loss_pts)
+        losses = loss + bce_loss
 
         losses.backward()
-
         optimizer.step()
 
         train_loss += losses.item()
@@ -85,10 +79,17 @@ for epoch in range(TRAINING_EPOCH):
     for data in val_dataloader:
         image, ground_truth = data['image'], data['label']
         
+        losses = 0.0
+
         target = model(image)
 
         loss = criterion(target,ground_truth)
-        valid_loss += loss.item()
+        bce_loss = criterion2(target, ground_truth)
+
+        losses = loss + bce_loss
+
+
+        valid_loss += losses.item()
         
         
     writer.add_scalar("Loss/Train", train_loss / len(train_dataloader), epoch)

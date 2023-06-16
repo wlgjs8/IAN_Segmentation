@@ -19,6 +19,9 @@ import nibabel as nib
 import numpy as np
 
 import utils
+from config import (
+    RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH
+)
 
 def sigmoid(x):
     return 1 / (1 +np.exp(-x))
@@ -45,7 +48,7 @@ def save_result(image, target, ground_truth, idx, save_dir='./results_heatmap_tr
     # target_pts, gt_pts = utils.compute_MIP_and_coordinates(np_target, np_gt)
     gt_pts = utils.compute_3D_coordinate(np_gt)
     # print('gt_pts : ', gt_pts)
-    gt_heatmaps = utils.kp2heatmap(gt_pts, size=(64, 128, 128))
+    gt_heatmaps = utils.kp2heatmap(gt_pts, size=(RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
     print('gt_heatmaps : ', gt_heatmaps.shape)
 
     np_gt = gt_heatmaps.numpy()
@@ -132,13 +135,13 @@ def save_result(image, target, ground_truth, idx, save_dir='./results_heatmap_tr
     nib.save(nii_gt, save_dir + '/gt_alpha_{}.nii.gz'.format(idx))
 
 
-model = UNet3D(in_channels=IN_CHANNELS , num_classes= NUM_CLASSES)
+model = UNet3D(in_channels=IN_CHANNELS , num_classes=NUM_CLASSES)
 
 # MODEL_WEIGHT_PATH = './checkpoints#1/epoch4_valLoss0.7130498807546755.pth'
 # MODEL_WEIGHT_PATH = './checkpoints(voi detection)/epoch8_valLoss0.5606752634048462.pth'
 # MODEL_WEIGHT_PATH = './checkpoints/epoch99_valLoss0.0004375985299702734.pth'
 # MODEL_WEIGHT_PATH = './checkpoints/epoch5_valLoss0.003529988694936037.pth'
-MODEL_WEIGHT_PATH = './checkpoints/epoch9_valLoss0.0024340334348380566.pth'
+MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch57_valLoss1.6486625671386719.pth'
 
 # model = torch.load(MODEL_WEIGHT_PATH)
 model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))

@@ -9,22 +9,7 @@ from torchsummary import summary
 import torch
 import torch.nn.functional as F
 
-import numpy as np
-import nibabel as nib
-
 import time
-
-from unet3d import UNet3D
-
-
-def weight_init_xavier_uniform(submodule):
-    if isinstance(submodule, torch.nn.Conv2d):
-        # torch.nn.init.xavier_uniform_(submodule.weight)
-        torch.nn.init.normal_(submodule.weight)
-        submodule.bias.data.fill_(0.01)
-    elif isinstance(submodule, torch.nn.BatchNorm2d):
-        submodule.weight.data.fill_(1.0)
-        submodule.bias.data.zero_()
 
 class Conv3DBlock(nn.Module):
     """
@@ -48,9 +33,6 @@ class Conv3DBlock(nn.Module):
         self.bottleneck = bottleneck
         if not bottleneck:
             self.pooling = nn.MaxPool3d(kernel_size=(2,2,2), stride=2)
-
-        for m in self.modules():
-            weight_init_xavier_uniform(m)
 
     
     def forward(self, input):
@@ -91,12 +73,11 @@ class UpConv3DBlock(nn.Module):
         self.last_layer = last_layer
         if last_layer:
             self.conv3 = nn.Conv3d(in_channels=in_channels//2, out_channels=num_classes, kernel_size=(1,1,1))
-        
-        for m in self.modules():
-            weight_init_xavier_uniform(m)
+            
         
     def forward(self, input, residual=None):
         out = self.upconv1(input)
+        if residual!=None: out = torch.cat((out, residual), 1)
         out = self.relu(self.bn(self.conv1(out)))
         out = self.relu(self.bn(self.conv2(out)))
         if self.last_layer: 
@@ -105,42 +86,7 @@ class UpConv3DBlock(nn.Module):
         return out
         
 
-class ConvEncoder(nn.Module):
-    def __init__(self, in_channels=1, level_channels=[64, 128, 256], bottleneck_channel=512) -> None:
-        super(ConvEncoder, self).__init__()
-        level_1_chnls, level_2_chnls, level_3_chnls = level_channels[0], level_channels[1], level_channels[2]
-        self.a_block1 = Conv3DBlock(in_channels=in_channels, out_channels=level_1_chnls)
-        self.a_block2 = Conv3DBlock(in_channels=level_1_chnls, out_channels=level_2_chnls)
-        self.a_block3 = Conv3DBlock(in_channels=level_2_chnls, out_channels=level_3_chnls)
-        self.bottleNeck = Conv3DBlock(in_channels=level_3_chnls, out_channels=bottleneck_channel, bottleneck= True)
 
-        self.up1 = nn.Upsample(scale_factor=2)
-        self.up2 = nn.Upsample(scale_factor=4)
-        self.up3 = nn.Upsample(scale_factor=8)
-
-        '''
-        input :  torch.Size([1, 1, 64, 128, 128])
-        encoder 1 :  torch.Size([1, 64, 32, 64, 64])
-        encoder 2 :  torch.Size([1, 128, 16, 32, 32])
-        encoder 3 :  torch.Size([1, 256, 8, 16, 16])
-
-        bottleNeck :  torch.Size([1, 512, 8, 16, 16])
-        '''
-
-    def forward(self, input):
-        enc1, _ = self.a_block1(input)
-        enc2, _ = self.a_block2(enc1)
-        enc3, _ = self.a_block3(enc2)
-        enc4, _ = self.bottleNeck(enc3)
-
-        enc1 = self.up1(enc1)
-        enc2 = self.up2(enc2)
-        enc3 = self.up3(enc3)
-        enc4 = self.up3(enc4)
-
-        out = torch.cat([enc1, enc2, enc3, enc4], dim=1)
-
-        return out
 
 class UNet3D(nn.Module):
     """
@@ -157,78 +103,29 @@ class UNet3D(nn.Module):
     """
     
     def __init__(self, in_channels, num_classes, level_channels=[64, 128, 256], bottleneck_channel=512) -> None:
-    # def __init__(self, in_channels, num_classes, level_channels=[32, 64, 128], bottleneck_channel=256) -> None:
-    # def __init__(self, in_channels, num_classes, level_channels=[16, 32, 64], bottleneck_channel=128) -> None:
         super(UNet3D, self).__init__()
         level_1_chnls, level_2_chnls, level_3_chnls = level_channels[0], level_channels[1], level_channels[2]
         self.a_block1 = Conv3DBlock(in_channels=in_channels, out_channels=level_1_chnls)
         self.a_block2 = Conv3DBlock(in_channels=level_1_chnls, out_channels=level_2_chnls)
         self.a_block3 = Conv3DBlock(in_channels=level_2_chnls, out_channels=level_3_chnls)
         self.bottleNeck = Conv3DBlock(in_channels=level_3_chnls, out_channels=bottleneck_channel, bottleneck= True)
+        self.s_block3 = UpConv3DBlock(in_channels=bottleneck_channel, res_channels=level_3_chnls)
+        self.s_block2 = UpConv3DBlock(in_channels=level_3_chnls, res_channels=level_2_chnls)
+        self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=level_1_chnls, num_classes=num_classes, last_layer=True)
 
-        # self.s_block3 = UpConv3DBlock(in_channels=bottleneck_channel, res_channels=level_3_chnls)
-        # self.s_block2 = UpConv3DBlock(in_channels=level_3_chnls, res_channels=level_2_chnls)
-        # self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=level_1_chnls, num_classes=4, last_layer=True)
-        self.s_block3 = UpConv3DBlock(in_channels=bottleneck_channel, res_channels=0)
-        self.s_block2 = UpConv3DBlock(in_channels=level_3_chnls, res_channels=0)
-        self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=0, num_classes=4, last_layer=True)
-
-        self.upsample = nn.Upsample(scale_factor=2)
-
-        self.encoder = ConvEncoder()
     
     def forward(self, input):
-        input = self.encoder(input)
-
         #Analysis path forward feed
-        print_flag = False
-        print_shape('input', input, print_flag)
         out, residual_level1 = self.a_block1(input)
-        print_shape('encoder 1', out, print_flag)
         out, residual_level2 = self.a_block2(out)
-        print_shape('encoder 2', out, print_flag)
         out, residual_level3 = self.a_block3(out)
-        print_shape('encoder 3', out, print_flag)
         out, _ = self.bottleNeck(out)
-        print_shape('bottleNeck', out, print_flag)
 
         #Synthesis path forward feed
-        out = self.s_block3(out)
-        print_shape('decoder 1', out, print_flag)
-        out = self.s_block2(out)
-        print_shape('decoder 2', out, print_flag)
-        out = self.s_block1(out)
-        print_shape('decoder 3', out, print_flag)
+        out = self.s_block3(out, residual_level3)
+        out = self.s_block2(out, residual_level2)
+        out = self.s_block1(out, residual_level1)
         return out
-
-        '''
-        input :  torch.Size([1, 1, 64, 128, 128])
-        encoder 1 :  torch.Size([1, 64, 32, 64, 64])
-        encoder 2 :  torch.Size([1, 128, 16, 32, 32])
-        encoder 3 :  torch.Size([1, 256, 8, 16, 16])
-
-        bottleNeck :  torch.Size([1, 512, 8, 16, 16])
-
-        decoder 1 :  torch.Size([1, 256, 16, 32, 32])
-        decoder 2 :  torch.Size([1, 128, 32, 64, 64])
-        decoder 2 :  torch.Size([1, 4, 64, 128, 128])
-        '''
-
-def save_feature(name, feature, save_dir='./features'):
-    sf = feature.squeeze(0).detach().cpu()
-    sf = torch.sum(sf, 0)
-    print('save feature : ', sf.shape)
-
-    sf = sf.numpy()
-    sf = nib.Nifti1Image(sf, affine=np.eye(4))
-    nib.save(sf, save_dir + '/{}.nii.gz'.format(name))
-
-def print_shape(name='input', feature=None, print_flag=False):
-    if print_flag==True:
-        print('{} : '.format(name), feature.shape)
-        save_feature(name, feature)
-
-
 
 
 if __name__ == '__main__':

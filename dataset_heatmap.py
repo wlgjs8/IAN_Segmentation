@@ -10,7 +10,11 @@ import torch
 from torch.utils.data import random_split
 from skimage.transform import resize
 from config import (
-    TRAIN_BATCH_SIZE, VAL_BATCH_SIZE, TEST_BATCH_SIZE
+    TRAIN_BATCH_SIZE, VAL_BATCH_SIZE, TEST_BATCH_SIZE,
+)
+
+from config import (
+    RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH
 )
 
 import utils
@@ -40,7 +44,7 @@ class MedicalSegmentationDecathlon(Dataset):
         name = self.data[idx]
 
         img_path = os.path.join(self.dir, self.mode, name, 'data.nii.gz')
-        label_path = os.path.join(self.dir, self.mode, name, 'gt_alpha.nii.gz')
+        label_path = os.path.join(self.dir, self.mode, name, 'gt_sparse.nii.gz')
 
         img_object = nib.load(img_path)
         label_object = nib.load(label_path)
@@ -48,14 +52,21 @@ class MedicalSegmentationDecathlon(Dataset):
         img_array = img_object.get_fdata()
         label_array = label_object.get_fdata()
 
-        img_array = resize_img(img_array, (64, 128, 128))
-        label_array = resize_img(label_array, (64, 128, 128))
-        numpy_label = label_array.numpy()
+        # img_array = resize_img(img_array, (RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+        img_array = resize(img_array, (64, 128, 128))
+        # img_array = resize_img(img_array, (RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+        label_array = resize(label_array, (64, 128, 128))
+        # label_array = resize_img(label_array, (RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+        # numpy_label = label_array.numpy()
+        numpy_label = label_array
 
         list_label_points = utils.compute_3D_coordinate(numpy_label)
-        tensor_heatmaps = utils.kp2heatmap(list_label_points, size=(64, 128, 128))
+        # list_label_points = torch.tensor(list_label_points).cuda()
+        tensor_heatmaps = utils.kp2heatmap(list_label_points, size=(RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+        # tensor_heatmaps, _ = torch.max(tensor_heatmaps, dim=0)
 
         # print('tensor_heatmaps : ', tensor_heatmaps.shape)
+        # tensor_heatmaps = tensor_heatmaps.unsqueeze(0)
 
         # img_array = resize(img_array, (128, 256, 256))
         # label_array = resize(label_array, (128, 256, 256))

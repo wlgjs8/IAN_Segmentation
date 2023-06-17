@@ -139,7 +139,7 @@ def resize_gt(img, size):
     
     meshz, meshy, meshx = torch.meshgrid((d,h,w))
     grid = torch.stack((meshz, meshy, meshx), 3)
-    grid = grid.unsqueeze(0).cuda() # (1, 64, 128, 128, 3)
+    grid = grid.unsqueeze(0) # (1, 64, 128, 128, 3)
 
     img = img.permute(0,1,4,3,2)
     # img = torch.nn.functional.grid_sample(img, grid, mode='bilinear', align_corners=True)

@@ -171,14 +171,14 @@ class UNet3D(nn.Module):
         # self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=level_1_chnls, num_classes=4, last_layer=True)
         self.s_block3 = UpConv3DBlock(in_channels=bottleneck_channel, res_channels=0)
         self.s_block2 = UpConv3DBlock(in_channels=level_3_chnls, res_channels=0)
-        self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=0, num_classes=4, last_layer=True)
+        self.s_block1 = UpConv3DBlock(in_channels=level_2_chnls, res_channels=0, num_classes=num_classes, last_layer=True)
 
         self.upsample = nn.Upsample(scale_factor=2)
 
         self.encoder = ConvEncoder()
     
     def forward(self, input):
-        input = self.encoder(input)
+        # input = self.encoder(input)
 
         #Analysis path forward feed
         print_flag = False

@@ -12,6 +12,7 @@ from transforms import (train_transform_cuda, val_transform_cuda)
 import torch.nn.functional as F
 import torch.nn as nn
 # import torchvision.ops.focal_loss as FocalLoss
+# from skimage.transform import resize
 
 from losses import DiceLoss, FocalLoss, BinaryFocalLoss
 import utils
@@ -51,14 +52,14 @@ criterion2 = BinaryFocalLoss()
 # criterion3 = nn.L1Loss()
 
 optimizer = Adam(params=model.parameters(), lr=1e-3)
-scheduler = MultiStepLR(optimizer, [40, 120, 360], gamma=0.1, last_epoch=-1)
+scheduler = MultiStepLR(optimizer, [24, 60, 120], gamma=0.1, last_epoch=-1)
 # get_last_lr
 
 from save_heatmap import save_result
 
 min_valid_loss = math.inf
-# alpha_pts = 10
-# alpha_heatmap = 10
+# alpha_pts = 1
+# alpha_heatmap = 1
 
 for epoch in range(TRAINING_EPOCH):
     
@@ -85,7 +86,27 @@ for epoch in range(TRAINING_EPOCH):
 
 
         image, ground_truth = data['image'], data['label']
-        target = model(image)
+        # target = model(image)
+        target1, target2, target3 = model(image)
+
+        # print('ground_truth : ', ground_truth.shape)
+
+        ground_truth1 = utils.resize_gt(ground_truth, (1, 4, 16, 32, 32))
+        ground_truth2 = utils.resize_gt(ground_truth, (1, 4, 32, 64, 64))
+        ground_truth3 = ground_truth
+
+        
+
+        '''
+        target1 :  torch.Size([1, 128, 16, 32, 32])
+        target2 :  torch.Size([1, 64, 32, 64, 64])
+        target3 :  torch.Size([1, 4, 64, 128, 128])
+
+        print('target1 : ', target1.shape)
+        print('target2 : ', target2.shape)
+        print('target3 : ', target3.shape)
+        print()
+        '''
 
         # print('image : ', image.shape)
         # print('target : ', target.shape)
@@ -126,20 +147,27 @@ for epoch in range(TRAINING_EPOCH):
 
         # print('target : ', target.shape)
         # print('ground_truth : ', ground_truth.shape)
-        loss_heatmap = criterion2(target, ground_truth)
+        loss_heatmap1 = criterion2(target1, ground_truth1)
+        loss_heatmap2 = criterion2(target2, ground_truth2)
+        loss_heatmap3 = criterion2(target3, ground_truth3)
 
         # pred_points = utils.heatmap2kp(target)
         # pred_points = pred_points.cuda()
+        # pred_points = pred_points / 128
 
         # gt_points = utils.heatmap2kp(ground_truth)
         # gt_points = gt_points.cuda()
+        # gt_points = gt_points / 128
 
         # loss_pts = criterion3(pred_points, gt_points)
 
         # losses = (loss_pts / alpha_pts) + (alpha_heatmap * loss_heatmap)
+        losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
         # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(idx+1, len(train_dataloader), loss_pts.item() / alpha_pts, loss_heatmap.item() * alpha_heatmap, losses.item()))
-        losses = loss_heatmap
-        print(' {} / {} => Total loss : {}'.format(idx+1, len(train_dataloader), losses.item()))
+        print(' {} / {} => Heatmap1 loss : {} | Heatmap2 loss : {} | Heatmap3 loss : {} | Total loss : {}'.format(
+            idx+1, len(train_dataloader), loss_heatmap1.item(), loss_heatmap2.item(), loss_heatmap3.item(), losses.item()
+        ))
+        # print(' {} / {} => Total loss : {}'.format(idx+1, len(train_dataloader), losses.item()))
 
         losses.backward()
 
@@ -156,24 +184,37 @@ for epoch in range(TRAINING_EPOCH):
         for val_idx, data in enumerate(val_dataloader):
             image, ground_truth = data['image'], data['label']
             
-            target = model(image)
+            # target = model(image)
+            target1, target2, target3 = model(image)
+
+            target = target3
+
+            ground_truth1 = utils.resize_gt(ground_truth, (1, 4, 16, 32, 32))
+            ground_truth2 = utils.resize_gt(ground_truth, (1, 4, 32, 64, 64))
+            ground_truth3 = ground_truth
 
             if val_idx < 2:
                 save_result(image, target, ground_truth, data['label_array'], val_idx)
 
-            loss_heatmap = criterion2(target, ground_truth)
+            
+            loss_heatmap1 = criterion2(target1, ground_truth1)
+            loss_heatmap2 = criterion2(target2, ground_truth2)
+            loss_heatmap3 = criterion2(target3, ground_truth3)
 
             # pred_points = utils.heatmap2kp(target)
             # pred_points = pred_points.cuda()
+            # pred_points = pred_points / 128
 
             # gt_points = utils.heatmap2kp(ground_truth)
             # gt_points = gt_points.cuda()
+            # gt_points = gt_points / 128
 
             # loss_pts = criterion3(pred_points, gt_points)
 
             # valid_loss = (loss_pts / alpha_pts) + (alpha_heatmap * loss_heatmap)
-            # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(idx+1, len(train_dataloader), loss_pts.item() / 10, loss_heatmap.item() * 10, losses.item()))
-            valid_loss = loss_heatmap
+            # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(val_idx+1, len(val_dataloader), loss_pts.item(), loss_heatmap.item(), valid_loss.item()))
+            # valid_loss = loss_heatmap
+            valid_loss = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
 
             # valid_loss = 10 * valid_loss
 

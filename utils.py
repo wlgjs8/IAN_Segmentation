@@ -71,7 +71,7 @@ def heatmap2kp(heatmaps):
     return coords
 
 
-def generate_gaussian_heatmap(size, coord, sigma=1.5):
+def generate_gaussian_heatmap(size, coord, sigma=2.0):
     d = np.arange(size[0])
     w = np.arange(size[1])
     h = np.arange(size[2])
@@ -130,6 +130,22 @@ def resize_img(img, size):
     img = torch.nn.functional.grid_sample(img, grid, mode='nearest', align_corners=True)
     # print('img : ', img.shape)
     img = img.squeeze(0).squeeze(0)
+    return img
+
+def resize_gt(img, size):
+    d = torch.linspace(-1,1,size[2])
+    h = torch.linspace(-1,1,size[3])
+    w = torch.linspace(-1,1,size[4])
+    
+    meshz, meshy, meshx = torch.meshgrid((d,h,w))
+    grid = torch.stack((meshz, meshy, meshx), 3)
+    grid = grid.unsqueeze(0).cuda() # (1, 64, 128, 128, 3)
+
+    img = img.permute(0,1,4,3,2)
+    # img = torch.nn.functional.grid_sample(img, grid, mode='bilinear', align_corners=True)
+    img = torch.nn.functional.grid_sample(img, grid, mode='nearest', align_corners=True)
+    # print('img : ', img.shape)
+    # img = img.squeeze(0).squeeze(0)
     return img
 
 def resize_tensor(img, size):

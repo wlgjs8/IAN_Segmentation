@@ -26,13 +26,14 @@ from config import (
     RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH
 )
 
-def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results_reproduce'):
+def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results focal sigma2'):
     if len(image.shape) == 3:
         np_image = image.detach().cpu().numpy()
     else:
         np_image = image.squeeze(0).squeeze(0).detach().cpu().numpy()
     
     target= target.squeeze(0)
+    
     # target= target.squeeze(0).squeeze(0)
     # np_target= target.detach().cpu().numpy()
     np_target, _ = torch.max(target, axis=0)
@@ -76,10 +77,9 @@ def save_result(image, target, ground_truth, label_array, idx, save_dir='./resul
     nib.save(nii_gt_kp, save_dir + '/gt_keypoints_{}.nii.gz'.format(idx))
     nib.save(nii_label_array, save_dir + '/gt_dense_{}.nii.gz'.format(idx))
 
-# model = UNet3D(in_channels=960 , num_classes= 4)
 model = HeatmapVNet()
 
-MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch53_valLoss1.5708772480138578e-05.pth'
+MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch40_valLoss0.23936134576797485.pth'
 model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
 
 model = model.cuda()
@@ -91,11 +91,12 @@ val_dataloader = get_val_Dataloaders(train_transforms= train_transforms, val_tra
 model.eval()
 
 for idx, data in enumerate(val_dataloader):
-    if idx > 1:
-        break
+    # if idx > 1:
+    #     break
     image, ground_truth = data['image'], data['label']
 
-    target = model(image)
+    # target = model(image)
+    _, _, target = model(image)
 
     '''
     print('image : ', image.shape)

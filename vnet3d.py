@@ -133,6 +133,22 @@ class EDUpTransition(nn.Module):
         return out
 
 
+class InterOutput(nn.Module):
+    def __init__(self, inChans, num_classes=4):
+        super(InterOutput, self).__init__()
+
+        self.conv = nn.Conv3d(inChans, num_classes, kernel_size=1)
+
+        for m in self.modules():
+            weight_init_xavier_uniform(m)
+
+    def forward(self, x):
+        out = self.conv(x)
+        out = F.sigmoid(out)
+
+        return out
+
+
 class OutputTransition(nn.Module):
     def __init__(self, inChans, elu, nll):
         super(OutputTransition, self).__init__()
@@ -229,20 +245,23 @@ class EDVNet(nn.Module):
         self.up_tr64 = EDUpTransition(64, 4, last_layer=True)
         # self.up_tr32 = EDUpTransition(32, 8, 1, elu)
         # self.out_tr = OutputTransition(32, elu, nll)
+        self.out1 = InterOutput(128)
+        self.out2 = InterOutput(64)
 
     def forward(self, x):
         # out32 = self.down_tr32(x)
         x = self.down_tr64(x)
         x = self.down_tr128(x)
         x = self.down_tr256(x)
-        out = self.up_tr256(x)
-        out = self.up_tr128(out)
-        out = self.up_tr64(out)
+        out1 = self.up_tr256(x)
+        out2 = self.up_tr128(out1)
+        out3 = self.up_tr64(out2)
         # out = self.up_tr32(out)
-
+        out1 = self.out1(out1)
+        out2 = self.out2(out2)
         # out = F.sigmoid(out)
 
-        return out
+        return [out1, out2, out3]
 
 
 class HeatmapVNet(nn.Module):

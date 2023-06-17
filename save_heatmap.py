@@ -26,7 +26,7 @@ from config import (
     RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH
 )
 
-def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results focal sigma2'):
+def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results (sigma2 + heatmaps + l1)'):
     if len(image.shape) == 3:
         np_image = image.detach().cpu().numpy()
     else:
@@ -79,7 +79,7 @@ def save_result(image, target, ground_truth, label_array, idx, save_dir='./resul
 
 model = HeatmapVNet()
 
-MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch40_valLoss0.23936134576797485.pth'
+MODEL_WEIGHT_PATH = './checkpoints/checkpoints (sigma2 + heatmaps + l1)/epoch7_valLoss0.3174147307872772.pth'
 model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
 
 model = model.cuda()

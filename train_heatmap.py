@@ -49,7 +49,7 @@ train_dataloader, val_dataloader, _ = get_train_val_test_Dataloaders(train_trans
 
 # criterion2 = nn.MSELoss()
 criterion2 = BinaryFocalLoss()
-# criterion3 = nn.L1Loss()
+criterion3 = nn.L1Loss()
 
 optimizer = Adam(params=model.parameters(), lr=1e-3)
 scheduler = MultiStepLR(optimizer, [24, 60, 120], gamma=0.1, last_epoch=-1)
@@ -58,8 +58,8 @@ scheduler = MultiStepLR(optimizer, [24, 60, 120], gamma=0.1, last_epoch=-1)
 from save_heatmap import save_result
 
 min_valid_loss = math.inf
-# alpha_pts = 1
-# alpha_heatmap = 1
+alpha_pts = 1
+alpha_heatmap = 1
 
 for epoch in range(TRAINING_EPOCH):
     
@@ -151,21 +151,22 @@ for epoch in range(TRAINING_EPOCH):
         loss_heatmap2 = criterion2(target2, ground_truth2)
         loss_heatmap3 = criterion2(target3, ground_truth3)
 
-        # pred_points = utils.heatmap2kp(target)
-        # pred_points = pred_points.cuda()
-        # pred_points = pred_points / 128
+        pred_points = utils.heatmap2kp(target3)
+        pred_points = pred_points.cuda()
+        pred_points = pred_points / 128
 
-        # gt_points = utils.heatmap2kp(ground_truth)
-        # gt_points = gt_points.cuda()
-        # gt_points = gt_points / 128
+        gt_points = utils.heatmap2kp(ground_truth3)
+        gt_points = gt_points.cuda()
+        gt_points = gt_points / 128
 
-        # loss_pts = criterion3(pred_points, gt_points)
+        loss_pts = criterion3(pred_points, gt_points)
 
-        # losses = (loss_pts / alpha_pts) + (alpha_heatmap * loss_heatmap)
-        losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+        heatmap_losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+        losses = (loss_pts / alpha_pts) + (alpha_heatmap * heatmap_losses)
+
         # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(idx+1, len(train_dataloader), loss_pts.item() / alpha_pts, loss_heatmap.item() * alpha_heatmap, losses.item()))
-        print(' {} / {} => Heatmap1 loss : {} | Heatmap2 loss : {} | Heatmap3 loss : {} | Total loss : {}'.format(
-            idx+1, len(train_dataloader), loss_heatmap1.item(), loss_heatmap2.item(), loss_heatmap3.item(), losses.item()
+        print(' {} / {} => Point loss : {} | Heatmap1 loss : {} | Heatmap2 loss : {} | Heatmap3 loss : {} | Total loss : {}'.format(
+            idx+1, len(train_dataloader), loss_pts.item(), loss_heatmap1.item(), loss_heatmap2.item(), loss_heatmap3.item(), losses.item()
         ))
         # print(' {} / {} => Total loss : {}'.format(idx+1, len(train_dataloader), losses.item()))
 
@@ -201,20 +202,18 @@ for epoch in range(TRAINING_EPOCH):
             loss_heatmap2 = criterion2(target2, ground_truth2)
             loss_heatmap3 = criterion2(target3, ground_truth3)
 
-            # pred_points = utils.heatmap2kp(target)
-            # pred_points = pred_points.cuda()
-            # pred_points = pred_points / 128
+            pred_points = utils.heatmap2kp(target3)
+            pred_points = pred_points.cuda()
+            pred_points = pred_points / 128
 
-            # gt_points = utils.heatmap2kp(ground_truth)
-            # gt_points = gt_points.cuda()
-            # gt_points = gt_points / 128
+            gt_points = utils.heatmap2kp(ground_truth3)
+            gt_points = gt_points.cuda()
+            gt_points = gt_points / 128
 
-            # loss_pts = criterion3(pred_points, gt_points)
+            loss_pts = criterion3(pred_points, gt_points)
 
-            # valid_loss = (loss_pts / alpha_pts) + (alpha_heatmap * loss_heatmap)
-            # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(val_idx+1, len(val_dataloader), loss_pts.item(), loss_heatmap.item(), valid_loss.item()))
-            # valid_loss = loss_heatmap
-            valid_loss = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+            heatmap_losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+            valid_loss = (loss_pts / alpha_pts) + (alpha_heatmap * heatmap_losses)
 
             # valid_loss = 10 * valid_loss
 

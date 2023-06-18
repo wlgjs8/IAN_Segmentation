@@ -168,6 +168,47 @@ def voi_crop(x, slice_d, slice_h, slice_w, MARGIN = 10):
     slice_h = sorted(slice_h)
     slice_w = sorted(slice_w)
 
+    # print('slice : ', slice_d, slice_h, slice_w)
+
+    ds = slice_d[0]-MARGIN
+    de = slice_d[1]+MARGIN
+
+    hs = slice_h[0]-MARGIN
+    he = slice_h[1]+MARGIN
+
+    ws = slice_w[0]-MARGIN
+    we = slice_w[1]+MARGIN
+
+    if ds < 0:
+        ds = 0
+    if de > RESIZE_DEPTH:
+        de = RESIZE_DEPTH - 1
+
+    if hs < 0:
+        hs = 0
+    if he > RESIZE_HEIGHT:
+        he = RESIZE_HEIGHT - 1
+
+    if ws < 0:
+        ws = 0
+    if we > RESIZE_WIDTH:
+        we = RESIZE_WIDTH - 1
+
+    # print('out : ', ds, de, ', ', hs, he, ', ', ws, we)
+    # print()
+
+    x = x.squeeze(0)
+    x = x[:, ds:de, hs:he, ws:we]
+    x = x.unsqueeze(0)
+
+    return x
+    
+
+def voi_crop2(x, slice_d, slice_h, slice_w, MARGIN = 10):
+    slice_d = sorted(slice_d)
+    slice_h = sorted(slice_h)
+    slice_w = sorted(slice_w)
+
     # ds = slice_d[0]-MARGIN
     # de = slice_d[1]+MARGIN
 

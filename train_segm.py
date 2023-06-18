@@ -7,14 +7,14 @@ from torch.nn import CrossEntropyLoss
 from dataset_segm import get_train_val_test_Dataloaders
 from torch.optim import Adam
 from torch.utils.tensorboard import SummaryWriter
-from unet3d_heatmap import UNet3D
+from unet3d import UNet3D
 from transform_segm import (train_transform_cuda, val_transform_cuda)
 import torch.nn.functional as F
 import torch.nn as nn
 # import torchvision.ops.focal_loss as FocalLoss
 # from skimage.transform import resize
 
-from losses import DiceLoss, FocalLoss, BinaryFocalLoss
+from losses import DiceLoss, FocalLoss, BinaryFocalLoss, DiceBCELoss
 import utils
 
 # from test_heatmap import save_result
@@ -36,7 +36,7 @@ torch.cuda.empty_cache()
 writer = SummaryWriter("runs")
 
 detector = HeatmapVNet()
-MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch40_valLoss0.23936134576797485.pth'
+MODEL_WEIGHT_PATH = './checkpoints/checkpoints (sigma2 + heatmaps)/epoch40_valLoss0.23936134576797485.pth'
 detector.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
 segm_model = UNet3D(in_channels=1 , num_classes=1)
 
@@ -48,7 +48,8 @@ val_transforms = val_transform_cuda
 
 train_dataloader, val_dataloader, _ = get_train_val_test_Dataloaders(train_transforms= train_transforms, val_transforms=val_transforms, test_transforms= val_transforms)
 
-criterion = DiceLoss()
+dice_criterion = DiceBCELoss()
+# bce_criterion = nn.BCELoss()
 
 # criterion2 = nn.MSELoss()
 # criterion2 = BinaryFocalLoss()
@@ -105,14 +106,14 @@ for epoch in range(TRAINING_EPOCH):
 
             voi = utils.voi_crop(image, [voi_start[0], voi_end[0]], [voi_start[1], voi_end[1]], [voi_start[2], voi_end[2]]).cuda()
             voi = utils.resize_tensor(voi, (64, 128, 128))
+            # save_result(image, voi.squeeze(0), ground_truth, ground_truth, idx+i)
             target = segm_model(voi)
-            print('target : ', target.shape)
 
             crop_ground_truth = utils.voi_crop(ground_truth, [voi_start[0], voi_end[0]], [voi_start[1], voi_end[1]], [voi_start[2], voi_end[2]]).cuda()
             crop_ground_truth = utils.resize_tensor(crop_ground_truth, (64, 128, 128))
-            print('crop_ground_truth : ', crop_ground_truth.shape)
+            # save_result(image, crop_ground_truth.squeeze(0), ground_truth, ground_truth, idx+i+10)
             
-            loss = criterion(target, crop_ground_truth)
+            loss = dice_criterion(target, crop_ground_truth)
             losses += loss
 
         # losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
@@ -132,56 +133,56 @@ for epoch in range(TRAINING_EPOCH):
     scheduler.step()
 
     valid_losses = 0.0
+    # valid_dice_losses = 0.0
+
     segm_model.eval()
     with torch.no_grad():
         for val_idx, data in enumerate(val_dataloader):
             image, ground_truth = data['image'], data['label']
             
             # target = model(image)
-            target1, target2, target3 = model(image)
+            _, _, heatmap = detector(image)
 
-            target = target3
-
-            ground_truth1 = utils.resize_gt(ground_truth, (1, 4, 16, 32, 32))
-            ground_truth2 = utils.resize_gt(ground_truth, (1, 4, 32, 64, 64))
-            ground_truth3 = ground_truth
-
-            if val_idx < 2:
-                save_result(image, target, ground_truth, data['label_array'], val_idx)
-
+            # if val_idx < 2:
+            #     save_result(image, target, ground_truth, data['label_array'], val_idx)
             
-            loss_heatmap1 = criterion2(target1, ground_truth1)
-            loss_heatmap2 = criterion2(target2, ground_truth2)
-            loss_heatmap3 = criterion2(target3, ground_truth3)
+            kps = utils.heatmap2kp(heatmap.squeeze(0).detach().cpu().numpy())
+            kps = kps.numpy()
+            kps = kps.astype(int)
 
-            # pred_points = utils.heatmap2kp(target)
-            # pred_points = pred_points.cuda()
-            # pred_points = pred_points / 128
+            losses = 0.0
+            # dice_losses = 0.0
 
-            # gt_points = utils.heatmap2kp(ground_truth)
-            # gt_points = gt_points.cuda()
-            # gt_points = gt_points / 128
+            for i in range(2):
+                voi_start = kps[2*i]
+                voi_end = kps[2*i + 1]
 
-            # loss_pts = criterion3(pred_points, gt_points)
+                voi = utils.voi_crop(image, [voi_start[0], voi_end[0]], [voi_start[1], voi_end[1]], [voi_start[2], voi_end[2]]).cuda()
+                # save_result(image, voi, ground_truth, ground_truth, idx+i)
+                voi = utils.resize_tensor(voi, (64, 128, 128))
+                target = segm_model(voi)
 
-            # valid_loss = (loss_pts / alpha_pts) + (alpha_heatmap * loss_heatmap)
-            # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(val_idx+1, len(val_dataloader), loss_pts.item(), loss_heatmap.item(), valid_loss.item()))
-            # valid_loss = loss_heatmap
-            valid_loss = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+                crop_ground_truth = utils.voi_crop(ground_truth, [voi_start[0], voi_end[0]], [voi_start[1], voi_end[1]], [voi_start[2], voi_end[2]]).cuda()
+                # save_result(image, crop_ground_truth, ground_truth, ground_truth, idx+i+10)
+                crop_ground_truth = utils.resize_tensor(crop_ground_truth, (64, 128, 128))
+                
+                loss = dice_criterion(target, crop_ground_truth)
+                losses += loss
 
-            # valid_loss = 10 * valid_loss
+                # dice_loss = dice_criterion(target, crop_ground_truth)
+                # dice_losses += dice_loss
 
-            # valid_loss = (loss_pts / 10) + (loss_heatmap * 10)
-            # valid_loss = loss_heatmap
-
-            # print('Val Point Loss : {}, Heatmap Loss : {}'.format((loss_pts / 10), (loss_heatmap * 10)))
+            valid_loss = losses
             valid_losses += valid_loss
+            # valid_dice_losses += dice_losses
 
             
         writer.add_scalar("Loss/Train", train_loss / len(train_dataloader), epoch)
         writer.add_scalar("Loss/Validation", valid_losses / len(val_dataloader), epoch)
+        # writer.add_scalar("Dice Loss/Validation", valid_dice_losses / len(val_dataloader), epoch)
         
         print(f'Epoch {epoch+1} \t\t Training Loss: {train_loss / len(train_dataloader)} \t\t Validation Loss: {valid_losses / len(val_dataloader)}')
+        # print(f'Epoch {epoch+1} \t\t Training Loss: {train_loss / len(train_dataloader)} \t\t Validation Loss: {valid_losses / len(val_dataloader)} \t\t Validation Dice Loss : {valid_dice_losses / len(val_dataloader)}')
         
         valid_losses = valid_losses / len(val_dataloader)
 
@@ -189,7 +190,7 @@ for epoch in range(TRAINING_EPOCH):
             print(f'Validation Loss Decreased({min_valid_loss:.6f}--->{valid_losses:.6f}) \t Saving The Model')
             min_valid_loss = valid_losses
             # Saving State Dict
-            torch.save(model.state_dict(), f'checkpoints/checkpoints/epoch{epoch}_valLoss{min_valid_loss}.pth')
+            torch.save(segm_model.state_dict(), f'checkpoints/checkpoints/epoch{epoch}_valLoss{min_valid_loss}.pth')
 
 writer.flush()
 writer.close()

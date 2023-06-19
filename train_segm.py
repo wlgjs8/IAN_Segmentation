@@ -48,11 +48,11 @@ val_transforms = val_transform_cuda
 
 train_dataloader, val_dataloader, _ = get_train_val_test_Dataloaders(train_transforms= train_transforms, val_transforms=val_transforms, test_transforms= val_transforms)
 
-dice_criterion = DiceBCELoss()
+# dice_criterion = DiceBCELoss()
 # bce_criterion = nn.BCELoss()
 
 # criterion2 = nn.MSELoss()
-# criterion2 = BinaryFocalLoss()
+dice_criterion = BinaryFocalLoss()
 # criterion3 = nn.L1Loss()
 
 optimizer = Adam(params=segm_model.parameters(), lr=1e-3)

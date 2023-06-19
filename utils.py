@@ -163,7 +163,7 @@ def resize_tensor(img, size):
     # print('img : ', img.shape)
     return img
 
-def voi_crop(x, slice_d, slice_h, slice_w, MARGIN = 10):
+def voi_crop(x, slice_d, slice_h, slice_w, MARGIN = 0):
     slice_d = sorted(slice_d)
     slice_h = sorted(slice_h)
     slice_w = sorted(slice_w)

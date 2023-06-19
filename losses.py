@@ -311,7 +311,8 @@ class BinaryFocalLoss(nn.Module):
         balance_index: (int) balance class index, should be specific when alpha is float
     """
 
-    def __init__(self, alpha=2, gamma=4, ignore_index=None, reduction='mean', **kwargs):
+    # def __init__(self, alpha=2, gamma=4, ignore_index=None, reduction='mean', **kwargs):
+    def __init__(self, alpha=0.25, gamma=2, ignore_index=None, reduction='mean', **kwargs):
         super(BinaryFocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
@@ -322,7 +323,8 @@ class BinaryFocalLoss(nn.Module):
         assert self.reduction in ['none', 'mean', 'sum']
 
     def forward(self, output, target):
-        prob = torch.sigmoid(output)
+        # prob = torch.sigmoid(output)
+        prob = output
         prob = torch.clamp(prob, self.smooth, 1.0 - self.smooth)
 
         valid_mask = None

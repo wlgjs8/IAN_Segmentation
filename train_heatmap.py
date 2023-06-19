@@ -29,9 +29,17 @@ from torch.optim.lr_scheduler import MultiStepLR
 # from hourglass.HourGlassNet3D import HourglassNet
 from vnet3d import HeatmapVNet
 
+
 gc.collect()
 torch.cuda.empty_cache()
 
+def _log_params(model, writer, num_iterations):
+    for name, value in model.named_parameters():
+        if value.grad is not None :
+            writer.add_histogram(name, value.data.cpu().numpy(), num_iterations)
+            writer.add_histogram(name + '/grad', value.grad.data.cpu().numpy(), num_iterations)
+        else :
+            print(name, value.grad)
 
 writer = SummaryWriter("runs")
 
@@ -84,7 +92,6 @@ for epoch in range(TRAINING_EPOCH):
 
         '''
 
-
         image, ground_truth = data['image'], data['label']
         # target = model(image)
         target1, target2, target3 = model(image)
@@ -95,74 +102,33 @@ for epoch in range(TRAINING_EPOCH):
         ground_truth2 = utils.resize_gt(ground_truth, (1, 4, 32, 64, 64))
         ground_truth3 = ground_truth
 
-        
-
-        '''
-        target1 :  torch.Size([1, 128, 16, 32, 32])
-        target2 :  torch.Size([1, 64, 32, 64, 64])
-        target3 :  torch.Size([1, 4, 64, 128, 128])
-
-        print('target1 : ', target1.shape)
-        print('target2 : ', target2.shape)
-        print('target3 : ', target3.shape)
-        print()
-        '''
-
-        # print('image : ', image.shape)
-        # print('target : ', target.shape)
-
-        '''
-        save_dir='./results/results_reproduce'
-
-        np_image = image.squeeze(0).squeeze(0).detach().cpu().numpy()
-        np_gts = ground_truth.squeeze(0).detach().cpu().numpy()
-        np_targets = target.squeeze(0).detach().cpu().numpy()
-        np_label = data['label_array'].squeeze(0).detach().cpu().numpy()
-
-        nii_image = nib.Nifti1Image(np_image, affine=np.eye(4))
-        nii_label = nib.Nifti1Image(np_label, affine=np.eye(4))
-
-        nib.save(nii_image, save_dir + '/image.nii.gz')
-        nib.save(nii_label, save_dir + '/label.nii.gz')
-
-        for i in range(4):
-            nii_gt = nib.Nifti1Image(np_gts[i,:,:,:], affine=np.eye(4))
-            nib.save(nii_gt, save_dir + '/gt_{}.nii.gz'.format(i))
-
-            nii_target = nib.Nifti1Image(np_targets[i, :,:,:], affine=np.eye(4))
-            nib.save(nii_target, save_dir + '/target_{}.nii.gz'.format(i))
-
-        tensor_kpfromgt = utils.heatmap2kp(np_gts)
-        tensor_kpfromgt = tensor_kpfromgt.numpy()
-        tensor_kpfromgt = tensor_kpfromgt.astype(int)
-
-        np_kpfromgt = np.zeros((64, 128, 128))
-        for i in range(4):
-            np_kpfromgt[tensor_kpfromgt[i][0]][tensor_kpfromgt[i][1]][tensor_kpfromgt[i][2]] = 1
-
-        nii_kpgt = nib.Nifti1Image(np_kpfromgt, affine=np.eye(4))
-        nib.save(nii_kpgt, save_dir + '/gt2kp.nii.gz')
-
-        '''
-
         # print('target : ', target.shape)
         # print('ground_truth : ', ground_truth.shape)
         loss_heatmap1 = criterion2(target1, ground_truth1)
         loss_heatmap2 = criterion2(target2, ground_truth2)
         loss_heatmap3 = criterion2(target3, ground_truth3)
 
-        pred_points = utils.heatmap2kp(target3)
+        pred_points = utils.hadamard_product(target3)
         pred_points = pred_points.cuda()
         pred_points = pred_points / 128
+
+        # pred_points = utils.heatmap2kp(target3)
+        # pred_points = pred_points.cuda()
+        # pred_points = pred_points / 128
 
         gt_points = utils.heatmap2kp(ground_truth3)
         gt_points = gt_points.cuda()
         gt_points = gt_points / 128
 
+        # print('pred_points : ', pred_points.shape, ' => ', pred_points.requires_grad)
+        # print('gt_points : ', gt_points.shape, ' => ', pred_points.requires_grad)
+
         loss_pts = criterion3(pred_points, gt_points)
 
         heatmap_losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
         losses = (loss_pts / alpha_pts) + (alpha_heatmap * heatmap_losses)
+
+        # losses = loss_pts
 
         # print(' {} / {} => Point loss : {} | Heatmap loss : {} | Total loss : {}'.format(idx+1, len(train_dataloader), loss_pts.item() / alpha_pts, loss_heatmap.item() * alpha_heatmap, losses.item()))
         print(' {} / {} => Point loss : {} | Heatmap1 loss : {} | Heatmap2 loss : {} | Heatmap3 loss : {} | Total loss : {}'.format(
@@ -171,11 +137,13 @@ for epoch in range(TRAINING_EPOCH):
         # print(' {} / {} => Total loss : {}'.format(idx+1, len(train_dataloader), losses.item()))
 
         losses.backward()
+        _log_params(model, writer, idx)
 
         optimizer.step()
         optimizer.zero_grad()
 
         train_loss += losses.item()
+
     
     scheduler.step()
 
@@ -194,15 +162,14 @@ for epoch in range(TRAINING_EPOCH):
             ground_truth2 = utils.resize_gt(ground_truth, (1, 4, 32, 64, 64))
             ground_truth3 = ground_truth
 
-            if val_idx < 2:
-                save_result(image, target, ground_truth, data['label_array'], val_idx)
-
+            # if val_idx < 2:
+            #     save_result(image, target, ground_truth, data['label_array'], val_idx)
             
             loss_heatmap1 = criterion2(target1, ground_truth1)
             loss_heatmap2 = criterion2(target2, ground_truth2)
             loss_heatmap3 = criterion2(target3, ground_truth3)
 
-            pred_points = utils.heatmap2kp(target3)
+            pred_points = utils.hadamard_product(target3)
             pred_points = pred_points.cuda()
             pred_points = pred_points / 128
 
@@ -212,15 +179,15 @@ for epoch in range(TRAINING_EPOCH):
 
             loss_pts = criterion3(pred_points, gt_points)
 
-            heatmap_losses = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
+            loss_heatmap = loss_heatmap1 + loss_heatmap2 + loss_heatmap3
             valid_loss = (loss_pts / alpha_pts) + (alpha_heatmap * heatmap_losses)
 
             # valid_loss = 10 * valid_loss
 
-            # valid_loss = (loss_pts / 10) + (loss_heatmap * 10)
-            # valid_loss = loss_heatmap
+            valid_loss = (loss_pts / 10) + (loss_heatmap * 10)
+            # valid_loss = loss_pts
 
-            # print('Val Point Loss : {}, Heatmap Loss : {}'.format((loss_pts / 10), (loss_heatmap * 10)))
+            print('Val Point Loss : {}, Heatmap Loss : {}'.format((loss_pts / 10), (loss_heatmap * 10)))
             valid_losses += valid_loss
 
             

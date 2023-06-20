@@ -61,7 +61,7 @@ def heatmap2kp(heatmaps):
     Need To Improve with Torch.Tensor
     '''
 
-    heatmaps = heatmaps.squeeze(0)
+    # heatmaps = heatmaps.squeeze(0)
 
     coords = []
     for heatmap in heatmaps:
@@ -78,7 +78,7 @@ def heatmap2kp(heatmaps):
     return coords
 
 
-def generate_gaussian_heatmap(size, coord, sigma=2.0):
+def generate_gaussian_heatmap(size, coord, sigma=1.0):
     d = np.arange(size[0])
     w = np.arange(size[1])
     h = np.arange(size[2])
@@ -119,6 +119,29 @@ def kp2heatmap(coords, size):
     heatmaps = heatmaps.float()
 
     return heatmaps
+
+def kp2singleheatmap(coords, size):
+    res = []
+    # cnt = 0
+    # save_dir='./results_heatmap_mse'
+
+    for coord in coords:
+        # heatmap = np.zeros(size)
+        # heatmap = generate_gaussian_heatmap(size, coord)
+        # heatmap = np.zeros(size)
+        heatmap = torch.zeros(size)
+        heatmap[coord[0]][coord[1]][coord[2]] = 1
+        res.append(heatmap)
+
+        # np_image = heatmap.numpy()
+        # nii_image = nib.Nifti1Image(np_image, affine=np.eye(4))
+        # nib.save(nii_image, save_dir + '/hhhhh{}.nii.gz'.format(cnt))
+        # cnt += 1
+    heatmaps = torch.stack(res, dim=0)
+    heatmaps = heatmaps.float()
+
+    return heatmaps
+
 
 def resize_img(img, size):
     d = torch.linspace(-1,1,size[0])

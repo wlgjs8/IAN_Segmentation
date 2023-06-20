@@ -62,7 +62,10 @@ class MedicalSegmentationDecathlon(Dataset):
 
         list_label_points = utils.compute_3D_coordinate(numpy_label)
         # list_label_points = torch.tensor(list_label_points).cuda()
-        tensor_heatmaps = utils.kp2heatmap(list_label_points, size=(RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+
+        # tensor_heatmaps = utils.kp2heatmap(list_label_points, size=(RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+        tensor_heatmaps = utils.kp2singleheatmap(list_label_points, size=(RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
+
         # tensor_heatmaps, _ = torch.max(tensor_heatmaps, dim=0)
 
         # print('tensor_heatmaps : ', tensor_heatmaps.shape)

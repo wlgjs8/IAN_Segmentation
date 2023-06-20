@@ -26,7 +26,14 @@ from config import (
     RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH
 )
 
-def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results(regression)'):
+heatmap_distances = []
+hadamard_distances = []
+
+def cal_dist(a, b):
+    dist = np.linalg.norm(a-b)
+    return dist
+
+def save_result(image, target, ground_truth, label_array, idx, save_dir='./results/results(LOK)'):
     if len(image.shape) == 3:
         np_image = image.detach().cpu().numpy()
     else:
@@ -49,7 +56,6 @@ def save_result(image, target, ground_truth, label_array, idx, save_dir='./resul
     kp_arr = np.zeros((RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
     gtkp_arr = np.zeros((RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
     hadamard_arr = np.zeros((RESIZE_DEPTH, RESIZE_HEIGHT, RESIZE_WIDTH))
-    # print('target ; ', target.shape)
     target2kp = utils.heatmap2kp(target.detach().cpu().numpy())
     target2kp = target2kp.numpy()
     target2kp = target2kp.astype(int)
@@ -58,7 +64,14 @@ def save_result(image, target, ground_truth, label_array, idx, save_dir='./resul
     gt_points = gt_points.numpy()
     gt_points = gt_points.astype(int)
 
+
     hadamard_kps = utils.hadamard_product_cpu(target, target2kp, gt_points)
+
+    heatmap_dist = cal_dist(target2kp, gt_points)
+    hadamard_dist = cal_dist(hadamard_kps, gt_points)
+
+    heatmap_distances.append(heatmap_dist)
+    hadamard_distances.append(hadamard_dist)
 
     for gtkp in gt_points:
         gtkp_arr[gtkp[0]][gtkp[1]][gtkp[2]] = 1
@@ -85,37 +98,51 @@ def save_result(image, target, ground_truth, label_array, idx, save_dir='./resul
     nib.save(nii_hadamard_kp, save_dir + '/hadamard_keypoints_{}.nii.gz'.format(idx))
     nib.save(nii_label_array, save_dir + '/gt_dense_{}.nii.gz'.format(idx))
 
-# model = HeatmapVNet()
+model = HeatmapVNet()
 
-# # MODEL_WEIGHT_PATH = './checkpoints/checkpoints (sigma2 + heatmaps + l1)/epoch7_valLoss0.3174147307872772.pth'
-# MODEL_WEIGHT_PATH = './checkpoints/checkpoints (sigma2 + heatmaps)/epoch40_valLoss0.23936134576797485.pth'
-# model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
+# MODEL_WEIGHT_PATH = './checkpoints/checkpoints (sigma2 + heatmaps + l1)/epoch7_valLoss0.3174147307872772.pth'
+# MODEL_WEIGHT_PATH = './checkpoints/checkpoints(sigma2 + heatmaps + l1)/epoch31_valLoss0.2640613913536072.pth'
+# MODEL_WEIGHT_PATH = './checkpoints/checkpoints(sigma1 + hamadard)/epoch10_valLoss0.2885511517524719.pth'
+MODEL_WEIGHT_PATH = './checkpoints/checkpoints/epoch46_valLoss0.2600375711917877.pth'
 
-# model = model.cuda()
-# train_transforms = train_transform_cuda
-# val_transforms = val_transform_cuda 
+model.load_state_dict(torch.load(MODEL_WEIGHT_PATH))
 
-# val_dataloader = get_val_Dataloaders(train_transforms= train_transforms, val_transforms=val_transforms, test_transforms= val_transforms)
+model = model.cuda()
+train_transforms = train_transform_cuda
+val_transforms = val_transform_cuda 
 
-# model.eval()
+val_dataloader = get_val_Dataloaders(train_transforms= train_transforms, val_transforms=val_transforms, test_transforms= val_transforms)
 
-# for idx, data in enumerate(val_dataloader):
-#     if idx > 1:
-#         break
-#     image, ground_truth = data['image'], data['label']
+model.eval()
 
-#     # target = model(image)
-#     _, _, target = model(image)
+for idx, data in enumerate(val_dataloader):
+    # if idx > 0:
+    #     break
+    image, ground_truth = data['image'], data['label']
 
-#     '''
-#     print('image : ', image.shape)
-#     print('ground_truth : ', ground_truth.shape)
-#     print('target : ', target.shape)
+    # target = model(image)
+    _, _, target = model(image)
 
-#     image :  torch.Size([1, 1, 64, 128, 128])
-#     ground_truth :  torch.Size([1, 1, 4, 64, 128, 128])
-#     target :  torch.Size([1, 4, 64, 128, 128])
-#     '''
+    '''
+    print('image : ', image.shape)
+    print('ground_truth : ', ground_truth.shape)
+    print('target : ', target.shape)
 
-#     # ground_truth = ground_truth.squeeze(0)
-#     save_result(image, target, ground_truth, data['label_array'], idx)
+    image :  torch.Size([1, 1, 64, 128, 128])
+    ground_truth :  torch.Size([1, 1, 4, 64, 128, 128])
+    target :  torch.Size([1, 4, 64, 128, 128])
+    '''
+
+    # ground_truth = ground_truth.squeeze(0)
+    save_result(image, target, ground_truth, data['label_array'], idx)
+
+    print(len(heatmap_distances))
+    print(len(hadamard_distances))
+
+    print('heatmap_distances avg : ', sum(heatmap_distances) / len(heatmap_distances))
+    print('hadamard_distances avg : ', sum(hadamard_distances) / len(hadamard_distances))
+
+# '''
+# heatmap_distances avg :  20.324214527565506
+# hadamard_distances avg :  14.366236312986185
+# '''
